@@ -187,44 +187,23 @@ def moving_average(signal_array: np.ndarray, window: int) -> np.ndarray:
     return np.apply_along_axis(lambda m: np.convolve(m, kernel, mode="same"), axis=1, arr=signal_array)
 
 
-def _prepare_threshold(threshold: float | np.ndarray, length: int) -> np.ndarray:
-    """Broadcast helper allowing scalar or per-channel thresholds."""
-
-    thr = np.asarray(threshold, dtype=float)
-    if thr.ndim == 0:
-        thr = np.full((length, 1), float(thr))
-    elif thr.ndim == 1:
-        thr = thr.reshape(length, 1)
-    else:
-        # Already channel × time-like: ensure leading dimension matches channels.
-        thr = thr.reshape(length, -1)
-    return thr
-
-
-def zero_crossings(x: np.ndarray, threshold: float | np.ndarray) -> np.ndarray:
+def zero_crossings(x: np.ndarray, threshold: float) -> np.ndarray:
     prod = x[:, :-1] * x[:, 1:]
     diff = np.abs(x[:, 1:] - x[:, :-1])
-    thr = _prepare_threshold(threshold, x.shape[0])
-    crossings = (prod < 0) & (diff >= thr)
+    crossings = (prod < 0) & (diff >= threshold)
     return crossings.sum(axis=1)
 
 
-def slope_sign_changes(x: np.ndarray, threshold: float | np.ndarray) -> np.ndarray:
+def slope_sign_changes(x: np.ndarray, threshold: float) -> np.ndarray:
     x1 = x[:, :-2]
     x2 = x[:, 1:-1]
     x3 = x[:, 2:]
-    thr = _prepare_threshold(threshold, x.shape[0])
-    cond = (
-        ((x2 - x1) * (x2 - x3) >= thr)
-        & (np.abs(x2 - x1) >= thr)
-        & (np.abs(x2 - x3) >= thr)
-    )
+    cond = ((x2 - x1) * (x2 - x3) >= threshold) & (np.abs(x2 - x1) >= threshold) & (np.abs(x2 - x3) >= threshold)
     return cond.sum(axis=1)
 
 
-def willison_amplitude(x: np.ndarray, threshold: float | np.ndarray) -> np.ndarray:
-    thr = _prepare_threshold(threshold, x.shape[0])
-    return (np.abs(np.diff(x, axis=1)) >= thr).sum(axis=1)
+def willison_amplitude(x: np.ndarray, threshold: float) -> np.ndarray:
+    return (np.abs(np.diff(x, axis=1)) >= threshold).sum(axis=1)
 
 
 def hjorth_parameters(x: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
