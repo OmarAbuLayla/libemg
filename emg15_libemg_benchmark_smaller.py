@@ -190,7 +190,7 @@ def moving_average(signal_array: np.ndarray, window: int) -> np.ndarray:
 def zero_crossings(x: np.ndarray, threshold: float) -> np.ndarray:
     prod = x[:, :-1] * x[:, 1:]
     diff = np.abs(x[:, 1:] - x[:, :-1])
-    crossings = (prod < 0) & (diff >= threshold)
+    crossings = (prod < 0) & (diff >= threshold[:, None])
     return crossings.sum(axis=1)
 
 
@@ -198,12 +198,12 @@ def slope_sign_changes(x: np.ndarray, threshold: float) -> np.ndarray:
     x1 = x[:, :-2]
     x2 = x[:, 1:-1]
     x3 = x[:, 2:]
-    cond = ((x2 - x1) * (x2 - x3) >= threshold) & (np.abs(x2 - x1) >= threshold) & (np.abs(x2 - x3) >= threshold)
+    cond = ((x2 - x1) * (x2 - x3) >= threshold[:, None]) & (np.abs(x2 - x1) >= threshold[:, None]) & (np.abs(x2 - x3) >= threshold[:, None])
     return cond.sum(axis=1)
 
 
 def willison_amplitude(x: np.ndarray, threshold: float) -> np.ndarray:
-    return (np.abs(np.diff(x, axis=1)) >= threshold).sum(axis=1)
+    return (np.abs(np.diff(x, axis=1)) >= threshold[:, None]).sum(axis=1)
 
 
 def hjorth_parameters(x: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -565,4 +565,3 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 if __name__ == "__main__":  # pragma: no cover - CLI entry point
     sys.exit(main())
-
