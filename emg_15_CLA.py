@@ -37,6 +37,12 @@ from libemg.offline_metrics import OfflineMetrics
 # ---------------------------------------------------------------------------
 
 
+def _strip_prefix(text: str, prefix: str) -> str:
+    if text.startswith(prefix):
+        return text[len(prefix) :]
+    return text
+
+
 def discover_metadata(root: Path) -> Tuple[List[str], List[str], List[str]]:
     """Collect unique subject/session/class identifiers across the dataset."""
 
@@ -60,8 +66,8 @@ def discover_metadata(root: Path) -> Tuple[List[str], List[str], List[str]]:
             subj_str, sess_str = rel_parts[0], rel_parts[1]
             label = mat_file.stem
 
-            subjects.add(subj_str)
-            sessions.add(sess_str)
+            subjects.add(_strip_prefix(subj_str, "subject_"))
+            sessions.add(_strip_prefix(sess_str, "session_"))
             classes.add(label)
 
     if not classes:
@@ -76,12 +82,9 @@ def discover_metadata(root: Path) -> Tuple[List[str], List[str], List[str]]:
 def build_filters(subjects: Sequence[str], sessions: Sequence[str], classes: Sequence[str]) -> List[RegexFilter]:
     """Create regex filters that expose subject/session/class metadata."""
 
-    # Folder names for subjects/sessions vary across datasets (e.g., ``session1`` vs
-    # ``session_01``). Using '/' as the delimiter makes the regex robust to these
-    # style differences because the captured value is the full directory name.
     return [
-        RegexFilter("/", "/", list(subjects), "subject"),
-        RegexFilter("/", "/", list(sessions), "session"),
+        RegexFilter("subject_", "/", list(subjects), "subject"),
+        RegexFilter("session_", "/", list(sessions), "session"),
         RegexFilter("/", ".mat", list(classes), "class"),
     ]
 
