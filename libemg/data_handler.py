@@ -23,6 +23,7 @@ from multiprocessing import Process, Event
 from libemg.feature_extractor import FeatureExtractor
 from libemg.shared_memory_manager import SharedMemoryManager
 from scipy.signal import welch
+from scipy.io import loadmat
 from libemg.utils import get_windows, _get_fn_windows, _get_mode_windows, make_regex
 
 class RegexFilter:
@@ -292,7 +293,8 @@ class OfflineDataHandler(DataHandler):
         return new_odh
         
     def get_data(self, folder_location: str, regex_filters: Sequence[RegexFilter], metadata_fetchers: Sequence[MetadataFetcher] | None = None, delimiter: str = ',',
-                 mrdf_key: str = 'p_signal', skiprows: int = 0, data_column: Sequence[int] | None = None, downsampling_factor: int | None = None):
+                 mrdf_key: str = 'p_signal', skiprows: int = 0, data_column: Sequence[int] | None = None, downsampling_factor: int | None = None,
+                 mat_key: str | None = None):
         """Method to collect data from a folder into the OfflineDataHandler object. The relevant data files can be selected based on passing in 
         RegexFilters, which will filter out non-matching files and grab metadata from the filename based on their provided description. Data can be labelled with other
         sources of metadata via passed in MetadataFetchers, which will associate metadata with each data file.
@@ -318,6 +320,8 @@ class OfflineDataHandler(DataHandler):
             List of indices representing columns of data in data file. If a list is passed in, only the data at these columns will be stored as EMG data.
         downsampling_factor: int or None, default=None
             Factor to downsample by. Signal is first filtered and then downsampled. See scipy.signal.decimate for more details (https://docs.scipy.org/doc/scipy/reference/generated/scipy.signal.decimate.html#scipy-signal-decimate).
+        mat_key: str or None, default=None
+            Variable name within MATLAB .mat files that contains the EMG data. Required when ingesting .mat files.
 
         Raises
         ------
@@ -342,7 +346,7 @@ class OfflineDataHandler(DataHandler):
         self.extra_attributes = []
         # Fetch data files
         all_files = []
-        for pattern in ['*.csv', '*.txt', '*.hea']:
+        for pattern in ['*.csv', '*.txt', '*.hea', '*.mat']:
             all_files.extend([y for x in os.walk(folder_location) for y in glob(os.path.join(x[0], pattern))])
         all_files = [Path(f).as_posix() for f in all_files]
         data_files = copy.deepcopy(all_files)
@@ -355,6 +359,21 @@ class OfflineDataHandler(DataHandler):
             if '.hea' in file:
                 # The key is the emg key that is in the mrdf file
                 file_data = (wfdb.rdrecord(file.replace('.hea',''))).__getattribute__(mrdf_key)
+            elif file.endswith('.mat'):
+                if mat_key is None:
+                    raise ValueError("Attempted to load a .mat file without specifying the 'mat_key' parameter.")
+                mat_file = loadmat(file)
+                if mat_key not in mat_file:
+                    raise KeyError(f"File {file} does not contain key '{mat_key}'.")
+                file_data = np.asarray(mat_file[mat_key])
+                # Normalise shape to samples x channels
+                if file_data.ndim >= 3:
+                    # Remove singleton dimensions one at a time, favouring leading axes first
+                    file_data = np.squeeze(file_data)
+                if file_data.ndim == 1:
+                    file_data = np.expand_dims(file_data, 1)
+                if file_data.ndim != 2:
+                    raise ValueError(f"Loaded .mat file {file} has unexpected shape {file_data.shape}. Expected a 2D array of samples x channels.")
             else:
                 file_data = np.genfromtxt(file,delimiter=delimiter, skip_header=skiprows)
                 if len(file_data.shape) == 1:
